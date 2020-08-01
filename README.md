@@ -12,7 +12,7 @@ virt-elemnt-bolt
 ## Example
 [Youtube](https://youtu.be/Rh-jrLgs1Uw)
 
-## Pre-requistics
+## Pre-requisites
 1. Install fitdecode, matplotlib, tqdm, and opencv-python
 ```shell
 pip3 install fitdecode matplotlib tqdm opencv-python
