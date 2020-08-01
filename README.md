@@ -13,18 +13,17 @@ virt-elemnt-bolt
 [Youtube](https://youtu.be/Rh-jrLgs1Uw)
 
 ## Pre-requistics
-### Install fitdecode, matplotlib, tqdm, and opencv-python
+1. Install fitdecode, matplotlib, tqdm, and opencv-python
 ```shell
 pip3 install fitdecode matplotlib tqdm opencv-python
 ```
 
-### Improve the performance to generate PNG images
-
+2. Improve the performance to generate PNG images
 ```shell
 pip3 uninstall pillow; export CPATH=`xcrun --show-sdk-path`/usr/include; pip3 install pillow-simd
 ```
 
-### Install ffmpeg
+3.Install ffmpeg
 virt-elemnt-bolt doesn't use any ffmpeg libs for Python. It calls ffmpeg directly with subprocess as a command line.
 
 For macOS,
@@ -32,8 +31,18 @@ For macOS,
 brew install ffmpeg
 ```
 
-### Install Roboto font
+4.Install Roboto font
 virt-element-bolt uses [roboto-boldcondensed font](https://fonts2u.com/roboto-bold-condensed.font).
+
+5.Download
+```shell
+git clone https://github.com/rioriost/virt-elemnt-bolt/
+```
+
+6.Add permission
+```shell
+chmod u+x virt-elemnt-bolt/virt-elemnt-bolt
+```
 
 ## Usage
 ```
