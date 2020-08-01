@@ -6,11 +6,11 @@ overlay 'virtual' ELEMNT BOLT on movies
 ## What is this?
 virt-elemnt-bolt 
 - Concatenates multiple movie files recorded with the action cameras, such as GoPro, and OSMO Action
-- Parse [FIT](https://www.thisisant.com/resources/fit-sdk/) data from Wahoo's ELEMNT BOLT
+- Parse [FIT](https://www.thisisant.com/resources/fit-sdk/) data from [Wahoo's ELEMNT BOLT](https://www.wahoofitness.com/devices/bike-computers)
 - Generate PNG images to be overlied on the concatenated movie
 
 ## Example
-https://youtu.be/Rh-jrLgs1Uw
+[Youtube](https://youtu.be/Rh-jrLgs1Uw)
 
 ## Pre-requistics
 ### Install fitdecode, matplotlib, tqdm, and opencv-python
