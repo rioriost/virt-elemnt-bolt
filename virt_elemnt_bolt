@@ -1,0 +1,486 @@
+#!/usr/bin/env python3
+
+# Requirements
+# pip3 install fitdecode matplotlib tqdm opencv-python
+
+# Improving the performance to generate PNG on macOS
+# pip3 uninstall pillow; export CPATH=`xcrun --show-sdk-path`/usr/include; pip3 install pillow-simd
+
+import sys
+import os
+import argparse
+import subprocess
+from datetime import datetime, timezone, timedelta
+
+from PIL import Image, ImageDraw, ImageFont
+
+def parsefit(fit_path, mode):
+    import fitdecode
+
+    pos_factor = 180 / (2 ** 31)
+    cal_factor = 0.000982691888813
+    altitude_factor = 0.0046875
+    # FIT uses timestamp since UTC 00:00 Dec 31 1989
+    epoch_diff = datetime(1989, 12, 31, 0, 0, 0) - datetime(1970, 1, 1, 0, 0, 0)
+
+    fit = fitdecode.FitReader(fit_path)
+    items = []
+    total_watt = 0; total_dist = 0; total_ride = timedelta(0)
+    front_gear = 1; rear_gear = 1
+    
+    print("Parsing fit...\n")
+    for frame in fit:
+        if frame.frame_type == 4:
+            field_num = 1
+            add_total_ride = False
+            for field in frame.fields:
+                if field_num == 1:
+                    if field.name == "time_created":
+                        time_created = field.value
+                        break
+                    elif field.name == "timestamp":
+                        key = "timestamp"
+                        timestamp = str(field.value)
+                        add_total_ride = True
+                    elif field.name == "unknown_253":
+                        key = "timestamp"
+                        timestamp = str(datetime.fromtimestamp(field.value, timezone.utc) + epoch_diff)
+                    else:
+                        break
+                elif field_num == 2:
+                    if field.name == "position_lat" or field.name == "unknown_0":
+                        wk_item = {"timestamp": timestamp}
+                        if add_total_ride:
+                            total_ride += timedelta(seconds=1)
+                        wk_item["ride"] = str(total_ride)
+                        key = "position_lat"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "{:.6f}".format(field.value * pos_factor)
+                    elif field.name == "enhanced_altitude":
+                        wk_item = {"timestamp": timestamp}
+                        if add_total_ride:
+                            total_ride += timedelta(seconds=1)
+                        wk_item["ride"] = str(total_ride)
+                    elif field.name == "event":
+                        pass
+                    else:
+                        break
+                else:
+                    if field.name == "position_long" or field.name == "unknown_1":
+                        key = "position_long"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "{:.6f}".format(field.value * pos_factor)
+                    elif field.name == "gps_accuracy" or field.name == "unknown_31":
+                        key = "gps_accuracy"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = str(field.value)
+                    elif field.name == "altitude":
+                        key = "altitude"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "{:.2f}".format(field.value)
+                        else: #FIXME
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = ""
+                    elif field.name == "unknown_2":
+                        key = "altitude"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "{:.2f}".format(field.value * altitude_factor)
+                        else:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = ""
+                    elif field.name == "grade":
+                        key = "grade"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = str(field.value)
+                        else:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "0.0"
+                    elif field.name == "unknown_9":
+                        key = "grade"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "{:.1f}".format(field.value / 100)
+                        else:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = "0.0"
+                    elif field.name == "distance":
+                        key = "distance"
+                        if field.value != None:
+                            dist = field.value / 1000
+                            wk_item[key] = "{:.1f}".format(dist)
+                            total_dist += dist
+                        else:
+                            wk_item[key] = "{:.1f}".format(total_dist)
+                    elif field.name == "unknown_5":
+                        key = "distance"
+                        if field.value != None:
+                            dist = field.value / 100000
+                            wk_item[key] = "{:.1f}".format(dist)
+                            total_dist += dist
+                        else:
+                            wk_item[key] = "{:.1f}".format(total_dist)
+                    elif field.name == "heart_rate" or field.name == "unknown_3":
+                        key = "heart_rate"
+                        if field.value != None:
+                            wk_item[key] = str(field.value)
+                        else:
+                            wk_item[key] = ""
+                    elif field.name == "cadence" or field.name == "unknown_4":
+                        key = "cadence"
+                        if field.value != None:
+                            wk_item[key] = str(field.value)
+                        else:
+                            wk_item[key] = "0"
+                    elif field.name == "speed":
+                        key = "speed"
+                        if field.value != None:
+                            wk_item[key] = "{:.1f}".format(field.value * 3.6)
+                        else:
+                            wk_item[key] = "0.0"
+                    elif field.name == "unknown_6":
+                        key = "speed"
+                        if field.value != None:
+                            wk_item[key] = "{:.1f}".format(field.value / 100)
+                        else:
+                            wk_item[key] = "0.0"
+                    elif field.name == "power" or field.name == "unknown_7":
+                        key = "power"
+                        if field.value != None:
+                            wk_item[key] = str(field.value)
+                            total_watt = total_watt + field.value
+                        else:
+                            wk_item[key] = "0"
+                        wk_item["calory"] = str(int(total_watt * cal_factor))
+                    elif field.name == "temperature" or field.name == "unknown_13":
+                        key = "temperature"
+                        if field.value != None:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = str(field.value)
+                        else:
+                            if mode == "full":
+                                pass
+                            else:
+                                wk_item[key] = ""
+                    elif field.name == "front_gear_num":
+                        front_gear = field.value
+                    elif field.name == "rear_gear_num":
+                        rear_gear = field.value
+                    elif field.name == "event_type":
+                        pass
+                    elif field.name == "enhanced_altitude":
+                        pass
+                    elif field.name == "rear_gear":
+                        pass
+                    elif field.name == "front_gear":
+                        pass
+                    elif field.name == "enhanced_speed":
+                        pass
+                    elif field.name == "left_right_balance":
+                        pass
+                    elif field.name == "unknown_30":
+                        pass
+                    elif field.name == "unknown_81":
+                        pass
+                    elif field.name == "battery_soc":
+                        pass
+                    else:
+                        break
+                field_num += 1
+            else:
+                wk_item["gear"] = str(front_gear) + "-" + str(rear_gear)
+                items.append(wk_item)
+                del wk_item
+    return items
+
+def set_font():
+    import matplotlib.font_manager as fm
+    # https://fonts2u.com/roboto-bold-condensed.font
+    default_font = "roboto-boldcondensed.ttf"
+    font_paths = fm.findSystemFonts()
+    for wk_path in font_paths:
+        font_basename = os.path.basename(wk_path)
+        if font_basename == default_font:
+            return wk_path
+        elif font_basename == "HelveticaNeue.ttc": #fallback
+            tmp_path = wk_path
+    return tmp_path
+
+def draw_text(img, text, x, y, font):
+    tmp = Image.new("RGBA", (1 ,1), (0, 0, 0, 0))
+    tmp_d = ImageDraw.Draw(tmp)
+    text_size = tmp_d.textsize(text, font)
+
+    text_img_d = ImageDraw.Draw(img)
+    text_img_d.text((x - text_size[0], y - text_size[1]), text, fill = (1, 1, 1, 255), font = font)
+
+def get_movie_props(mov):
+    import cv2
+    vid = cv2.VideoCapture(mov)
+    return {"time": int(vid.get(cv2.CAP_PROP_FRAME_COUNT) / vid.get(cv2.CAP_PROP_FPS)), "width" : int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)), "height" : int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))}
+
+def get_tmp_img():
+    template_png = "images/Wahoo_ELEMNT BOLT_temp.png"
+    return Image.open(template_png)
+
+def get_resize_ratio(canvas_height, src_height, relative_height):
+    return canvas_height / src_height * relative_height
+
+def set_positions(mode, ratio):
+    line_height = 170
+    if mode == "full": # based-on Wahoo_ELEMENT BOLT_temp.png
+        tmp = {
+            "disp_left_pos" : 500,
+            "disp_right_pos" : 860,
+            "disp_title_line1" : 316,
+            "disp_title_line2" : 526,
+            "disp_title_line3" : 526 + line_height,
+            "disp_title_line4" : 526 + line_height * 2,
+            "disp_title_line5" : 526 + line_height * 3,
+            "disp_data_line1" : 456,
+            "disp_data_line2" : 456 + line_height,
+            "disp_data_line3" : 456 + line_height * 2,
+            "disp_data_line4" : 456 + line_height * 3,
+            "disp_data_line5" : 456 + line_height * 4}
+        return {k:int(v * ratio) for k, v in tmp.items()}
+
+def set_font_size(ratio):
+    tmp = {
+        "large_title" : 80,
+        "small_title" : 52,
+        "large_data" : 160,
+        "small_data" : 104}
+    return {k:int(v * ratio) for k, v in tmp.items()}
+
+def overlay_png(frames, dst_path, mov_path, mode, pos, relative_height, duration, preset, save_pngs):
+    from pathlib import Path
+    from tqdm import tqdm
+
+    mov_props = get_movie_props(mov_path)
+    tmp_img = get_tmp_img()
+    resize_ratio = get_resize_ratio(mov_props["height"], tmp_img.height, relative_height)
+    positions = set_positions(mode, resize_ratio)
+
+    font_path = set_font()
+    font_sizes = set_font_size(resize_ratio)
+
+    base_img = tmp_img.resize((int(tmp_img.width * resize_ratio), int(tmp_img.height * resize_ratio)))
+    if mode == "full":
+        font = ImageFont.truetype(font_path, font_sizes["large_title"])
+        draw_text(base_img, "RIDE", positions["disp_right_pos"], positions["disp_title_line1"], font)
+
+        font = ImageFont.truetype(font_path, font_sizes["small_title"])
+        draw_text(base_img, "km", positions["disp_left_pos"], positions["disp_title_line2"], font)
+        draw_text(base_img, "KPH", positions["disp_right_pos"], positions["disp_title_line2"], font)
+        draw_text(base_img, "CAL", positions["disp_left_pos"], positions["disp_title_line3"], font)
+        draw_text(base_img, "RPM", positions["disp_right_pos"], positions["disp_title_line3"], font)
+        draw_text(base_img, "BPM", positions["disp_left_pos"], positions["disp_title_line4"], font)
+        draw_text(base_img, "WATTS", positions["disp_right_pos"], positions["disp_title_line4"], font)
+        draw_text(base_img, "GEAR", positions["disp_right_pos"], positions["disp_title_line5"], font)
+
+    img_num = 1
+    path_to_save = dst_path + "/" + "{:05d}" + ".png"
+    if duration >= 1:
+        for s in range(1, duration + 1):
+            base_img.save(path_to_save.format(s))
+        img_num += s
+
+    try:
+        tqdm_bar = tqdm(total = len(frames))
+        tqdm_bar.set_description("Generating images...")
+        font_large = ImageFont.truetype(font_path, font_sizes["large_data"])
+        font_small = ImageFont.truetype(font_path, font_sizes["small_data"])
+        for frame in frames:
+            img_wk = base_img.copy()
+            for k, v in frame.items():
+                if mode == "full":
+                    if k == "timestamp":
+                        pass
+                    elif k == "ride":
+                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line1"], font_large)
+                    elif k == "distance":
+                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line2"], font_small)
+                    elif k == "speed":
+                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line2"], font_small)
+                    elif k == "calory":
+                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line3"], font_small)
+                    elif k == "cadence":
+                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line3"], font_small)
+                    elif k == "heart_rate":
+                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line4"], font_small)
+                    elif k == "power":
+                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line4"], font_small)
+                    elif k == "gear":
+                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line5"], font_small)
+            img_wk.save(path_to_save.format(img_num))
+            img_num += 1
+            tqdm_bar.update(1)
+    except KeyboardInterrupt:
+        pass
+    tqdm_bar.close()
+
+    wk_pos = pos.split(":")
+    if wk_pos[0] == "left":
+        x = 0
+    else:
+        x = mov_props["width"] - tmp_img.width * resize_ratio
+    if wk_pos[1] == "upper":
+        y = 0
+    else:
+        y = mov_props["height"] - tmp_img.height * resize_ratio
+
+    output_path = dst_path + "/virtual_elemnt_bolt.mp4"
+    subprocess.run(["ffmpeg",
+        "-i", mov_path,
+        "-framerate", "1",
+        "-t", str(mov_props["time"]),
+        "-i", dst_path + "/%05d.png",
+        "-filter_complex", "[1:0]colorkey=black:0.01:0[colorkey];[0:0][colorkey]overlay=x={0}:y={1}:enable='gt(t,{2})'".format(x, y, duration),
+        "-preset", preset,
+        output_path])
+
+    print("\n" + "Completed to write '{}' !!".format(output_path))
+
+    if save_pngs == False:
+        for p in Path(dst_path).glob("*.png"):
+            p.unlink()
+
+def concatenate_movies(movies, dst_path):
+    import tempfile
+    mov_path = dst_path + "/concated.mp4"
+    fp = tempfile.NamedTemporaryFile(mode = "w", delete = False)
+    for mov in movies:
+        fp.write("file '{}'\n".format(mov))
+    fp.close()
+    
+    subprocess.run(["ffmpeg",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", fp.name,
+        "-c", "copy",
+        mov_path])
+    os.unlink(fp.name)
+    return mov_path
+
+def is_fit_file(file_path):
+    f = open(file_path, "rb")
+    f.seek(9)
+    data = f.read(3)
+    return data == b"FIT"
+
+def check_fit(path, help):
+    if os.path.exists(path) == False:
+        print("\n" + "Could not find the file '{}'.".format(path) + "\n")
+        help()
+        sys.exit(1)
+    if is_fit_file(path) == False:
+        print("\n" + "The file '{}' is not a FIT file.".format(path) + "\n")
+        help()
+        sys.exit(1)
+
+def ensure_dir(path, prog):
+    if path == None:
+        d = prog + "-output-" + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        os.makedirs(d)
+        return d
+    if os.path.exists(path) == True:
+        if os.path.isdir(path) == True:
+            return path
+        else:
+            print("\n" + "The file having the same name, '{}' exists. Stopped processing.".format(path) + "\n")
+            sys.exit(1)
+    else:
+        if os.path.isdir(path) == False:
+            print("\n" + "Could not find the directory '{}'. Do you want to create it? [Y/n]".format(path))
+            while True:
+                c = sys.stdin.read(1)
+                if c == "Y" or c == "y" or ord(c) == 10:
+                    os.makedirs(path)
+                    return path
+                elif c == "N" or c == "n":
+                    print("\n" + "Stopped processing." + "\n")
+                    sys.exit(1)
+                else:
+                    print("\n" + "Please input Y or N.")
+
+def main():
+    parser = argparse.ArgumentParser(description = "Overlay 'virtual' ELEMNT BOLT on the movie")
+    parser.add_argument("fit_path",
+        help = "Path of a FIT file of ELEMNT BOLT")
+    parser.add_argument("movie_path",
+        nargs = "*",
+        help = "Path of a movie file(s), /path/to/*.mp4")
+    parser.add_argument("--duration", "-d",
+        type = int,
+        default = 0,
+        help = "Duration to start displaying ELEMNT BOLT (default: 0)")
+    parser.add_argument("--mode", "-m", choices = ["full"],
+        default = "full",
+        help = "Display mode of ELEMNT BOLT (default: full)")
+    parser.add_argument("--output", "-o", 
+        default = parser.prog + "-output-" + datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        help = "Path of a directory to save PNG images and concatenated video file (default: {0}-output-{1})".format(parser.prog, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    parser.add_argument("--position", "-p", choices = ["left:upper", "left:bottom", "right:upper", "right:bottom"],
+        default = "left:bottom",
+        help = "Position to put ELEMNT BOLT in the movie (default: left:bottom)")
+    parser.add_argument("--preset",
+        default = "veryfast",
+        choices = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+        help = "Preset of ffmpeg to overlay PNG images to the movie (default: veryfast)")
+    parser.add_argument("--save_pngs",
+        default = False,
+        action = "store_true",
+        help = "Flag to save PNG images after processing")
+    parser.add_argument("--size", "-s",
+        type = float,
+        default = 0.3,
+        choices = [i / 10 for i in range(1, 11)],
+        help = "Relative height of ELEMNT BOLT to the video (default: 0.3)")
+    args = parser.parse_args()
+
+    # Check if the specified file is 'FIT'
+    check_fit(args.fit_path, parser.print_help)
+    # Ensure the specified path is an existing directory
+    dst_path = ensure_dir(args.output, parser.prog)
+
+    # Concatenating the movies if exist
+    if len(args.movie_path) >= 2:
+        mov_path = concatenate_movies(args.movie_path, dst_path)
+    else:
+        mov_path = args.movie_path[0]
+    # Parse a 'FIT' and store the data to an array of dictionary
+    frames = parsefit(args.fit_path, args.mode)
+    # Generate PNG images
+    overlay_png(frames, dst_path, mov_path, args.mode, args.position, args.size, args.duration, args.preset, args.save_pngs)
+
+if __name__ == "__main__":
+    main()
