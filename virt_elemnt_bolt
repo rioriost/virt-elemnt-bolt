@@ -281,72 +281,76 @@ def set_font_size(ratio):
         "small_data" : 104}
     return {k:int(v * ratio) for k, v in tmp.items()}
 
-def overlay_png(frames, dst_path, mov_path, mode, pos, relative_height, duration, preset, save_pngs):
+def overlay_png(frames, dst_path, mov_path, args):
     from pathlib import Path
     from tqdm import tqdm
+
+    mode = args.mode; pos = args.position; relative_height = args.size; duration = args.duration
+    preset = args.preset; save_pngs = args.save_pngs; skip_generate = args.skip_generate
 
     mov_props = get_movie_props(mov_path)
     tmp_img = get_tmp_img()
     resize_ratio = get_resize_ratio(mov_props["height"], tmp_img.height, relative_height)
     positions = set_positions(mode, resize_ratio)
 
-    font_path = set_font()
-    font_sizes = set_font_size(resize_ratio)
+    if skip_generate != True:
+        font_path = set_font()
+        font_sizes = set_font_size(resize_ratio)
 
-    base_img = tmp_img.resize((int(tmp_img.width * resize_ratio), int(tmp_img.height * resize_ratio)))
-    if mode == "full":
-        font = ImageFont.truetype(font_path, font_sizes["large_title"])
-        draw_text(base_img, "RIDE", positions["disp_right_pos"], positions["disp_title_line1"], font)
+        base_img = tmp_img.resize((int(tmp_img.width * resize_ratio), int(tmp_img.height * resize_ratio)))
+        if mode == "full":
+            font = ImageFont.truetype(font_path, font_sizes["large_title"])
+            draw_text(base_img, "RIDE", positions["disp_right_pos"], positions["disp_title_line1"], font)
 
-        font = ImageFont.truetype(font_path, font_sizes["small_title"])
-        draw_text(base_img, "km", positions["disp_left_pos"], positions["disp_title_line2"], font)
-        draw_text(base_img, "KPH", positions["disp_right_pos"], positions["disp_title_line2"], font)
-        draw_text(base_img, "CAL", positions["disp_left_pos"], positions["disp_title_line3"], font)
-        draw_text(base_img, "RPM", positions["disp_right_pos"], positions["disp_title_line3"], font)
-        draw_text(base_img, "BPM", positions["disp_left_pos"], positions["disp_title_line4"], font)
-        draw_text(base_img, "WATTS", positions["disp_right_pos"], positions["disp_title_line4"], font)
-        draw_text(base_img, "GEAR", positions["disp_right_pos"], positions["disp_title_line5"], font)
+            font = ImageFont.truetype(font_path, font_sizes["small_title"])
+            draw_text(base_img, "km", positions["disp_left_pos"], positions["disp_title_line2"], font)
+            draw_text(base_img, "KPH", positions["disp_right_pos"], positions["disp_title_line2"], font)
+            draw_text(base_img, "CAL", positions["disp_left_pos"], positions["disp_title_line3"], font)
+            draw_text(base_img, "RPM", positions["disp_right_pos"], positions["disp_title_line3"], font)
+            draw_text(base_img, "BPM", positions["disp_left_pos"], positions["disp_title_line4"], font)
+            draw_text(base_img, "WATTS", positions["disp_right_pos"], positions["disp_title_line4"], font)
+            draw_text(base_img, "GEAR", positions["disp_right_pos"], positions["disp_title_line5"], font)
 
-    img_num = 1
-    path_to_save = dst_path + "/" + "{:05d}" + ".png"
-    if duration >= 1:
-        for s in range(1, duration + 1):
-            base_img.save(path_to_save.format(s))
-        img_num += s
+        img_num = 1
+        path_to_save = dst_path + "/" + "{:05d}" + ".png"
+        if duration >= 1:
+            for s in range(1, duration + 1):
+                base_img.save(path_to_save.format(s))
+            img_num += s
 
-    try:
-        tqdm_bar = tqdm(total = len(frames))
-        tqdm_bar.set_description("Generating images...")
-        font_large = ImageFont.truetype(font_path, font_sizes["large_data"])
-        font_small = ImageFont.truetype(font_path, font_sizes["small_data"])
-        for frame in frames:
-            img_wk = base_img.copy()
-            for k, v in frame.items():
-                if mode == "full":
-                    if k == "timestamp":
-                        pass
-                    elif k == "ride":
-                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line1"], font_large)
-                    elif k == "distance":
-                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line2"], font_small)
-                    elif k == "speed":
-                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line2"], font_small)
-                    elif k == "calory":
-                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line3"], font_small)
-                    elif k == "cadence":
-                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line3"], font_small)
-                    elif k == "heart_rate":
-                        draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line4"], font_small)
-                    elif k == "power":
-                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line4"], font_small)
-                    elif k == "gear":
-                        draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line5"], font_small)
-            img_wk.save(path_to_save.format(img_num))
-            img_num += 1
-            tqdm_bar.update(1)
-    except KeyboardInterrupt:
-        pass
-    tqdm_bar.close()
+        try:
+            tqdm_bar = tqdm(total = len(frames))
+            tqdm_bar.set_description("Generating images...")
+            font_large = ImageFont.truetype(font_path, font_sizes["large_data"])
+            font_small = ImageFont.truetype(font_path, font_sizes["small_data"])
+            for frame in frames:
+                img_wk = base_img.copy()
+                for k, v in frame.items():
+                    if mode == "full":
+                        if k == "timestamp":
+                            pass
+                        elif k == "ride":
+                            draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line1"], font_large)
+                        elif k == "distance":
+                            draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line2"], font_small)
+                        elif k == "speed":
+                            draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line2"], font_small)
+                        elif k == "calory":
+                            draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line3"], font_small)
+                        elif k == "cadence":
+                            draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line3"], font_small)
+                        elif k == "heart_rate":
+                            draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line4"], font_small)
+                        elif k == "power":
+                            draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line4"], font_small)
+                        elif k == "gear":
+                            draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line5"], font_small)
+                img_wk.save(path_to_save.format(img_num))
+                img_num += 1
+                tqdm_bar.update(1)
+        except KeyboardInterrupt:
+            pass
+        tqdm_bar.close()
 
     wk_pos = pos.split(":")
     if wk_pos[0] == "left":
@@ -460,6 +464,10 @@ def main():
         default = False,
         action = "store_true",
         help = "Flag to save PNG images after processing")
+    parser.add_argument("--skip_generate",
+        default = False,
+        action = "store_true",
+        help = "Flag to generate PNG images (to overlay existing PNG images)")
     parser.add_argument("--size", "-s",
         type = float,
         default = 0.3,
@@ -480,7 +488,7 @@ def main():
     # Parse a 'FIT' and store the data to an array of dictionary
     frames = parsefit(args.fit_path, args.mode)
     # Generate PNG images
-    overlay_png(frames, dst_path, mov_path, args.mode, args.position, args.size, args.duration, args.preset, args.save_pngs)
+    overlay_png(frames, dst_path, mov_path, args)
 
 if __name__ == "__main__":
     main()
