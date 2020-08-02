@@ -48,9 +48,11 @@ chmod u+x virt-elemnt-bolt/virt-elemnt-bolt
 
 ## Usage
 ```
-usage: virt_elemnt_bolt [-h] [--duration DURATION] [--mode {full}] [--output OUTPUT]
+usage: virt_elemnt_bolt [-h] [--duration DURATION] [--mode {full}]
+                        [--output OUTPUT]
                         [--position {left:upper,left:bottom,right:upper,right:bottom}]
-                        [--preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow}] [--save_pngs]
+                        [--preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow}]
+                        [--save_pngs] [--skip_generate]
                         [--size {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0}]
                         fit_path [movie_path [movie_path ...]]
 
@@ -67,13 +69,19 @@ optional arguments:
   --mode {full}, -m {full}
                         Display mode of ELEMNT BOLT (default: full)
   --output OUTPUT, -o OUTPUT
-                        Path of a directory to save PNG images and concatenated video file (default: virt_elemnt_bolt-output-2020-08-01
-                        21:15:46)
+                        Path of a directory to save PNG images and
+                        concatenated video file (default: virt_elemnt_bolt-
+                        output-2020-08-02 15:15:45)
   --position {left:upper,left:bottom,right:upper,right:bottom}, -p {left:upper,left:bottom,right:upper,right:bottom}
-                        Position to put ELEMNT BOLT in the movie (default: left:bottom)
+                        Position to put ELEMNT BOLT in the movie (default:
+                        left:bottom)
   --preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow}
-                        Preset of ffmpeg to overlay PNG images to the movie (default: veryfast)
+                        Preset of ffmpeg to overlay PNG images to the movie
+                        (default: veryfast)
   --save_pngs           Flag to save PNG images after processing
+  --skip_generate       Flag to generate PNG images (to overlay existing PNG
+                        images)
   --size {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0}, -s {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0}
-                        Relative height of ELEMNT BOLT to the video (default: 0.3)
+                        Relative height of ELEMNT BOLT to the video (default:
+                        0.3)
 ```
