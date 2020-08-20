@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # Requirements
-# pip3 install fitdecode matplotlib tqdm opencv-python
+# pip3 install fitdecode matplotlib tqdm opencv-python requests
 
 # Improving the performance to generate PNG on macOS
 # pip3 uninstall pillow; export CPATH=`xcrun --show-sdk-path`/usr/include; pip3 install pillow-simd
@@ -25,7 +25,7 @@ def parsefit(fit_path, mode):
 
     fit = fitdecode.FitReader(fit_path)
     items = []
-    total_watt = 0; total_dist = 0; total_ride = timedelta(0)
+    total_dist = 0; total_ride = timedelta(0)
     front_gear = 1; rear_gear = 1
     
     print("Parsing fit...\n")
@@ -55,10 +55,7 @@ def parsefit(fit_path, mode):
                         wk_item["ride"] = str(total_ride)
                         key = "position_lat"
                         if field.value != None:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = "{:.6f}".format(field.value * pos_factor)
+                            wk_item[key] = "{:.6f}".format(field.value * pos_factor)
                     elif field.name == "enhanced_altitude":
                         wk_item = {"timestamp": timestamp}
                         if add_total_ride:
@@ -72,41 +69,23 @@ def parsefit(fit_path, mode):
                     if field.name == "position_long" or field.name == "unknown_1":
                         key = "position_long"
                         if field.value != None:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = "{:.6f}".format(field.value * pos_factor)
+                            wk_item[key] = "{:.6f}".format(field.value * pos_factor)
                     elif field.name == "gps_accuracy" or field.name == "unknown_31":
                         key = "gps_accuracy"
                         if field.value != None:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = str(field.value)
+                            wk_item[key] = str(field.value)
                     elif field.name == "altitude":
                         key = "altitude"
                         if field.value != None:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = "{:.2f}".format(field.value)
+                            wk_item[key] = "{:.2f}".format(field.value)
                         else: #FIXME
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = ""
+                            wk_item[key] = ""
                     elif field.name == "unknown_2":
                         key = "altitude"
                         if field.value != None:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = "{:.2f}".format(field.value * altitude_factor)
+                            wk_item[key] = "{:.2f}".format(field.value * altitude_factor)
                         else:
-                            if mode == "full":
-                                pass
-                            else:
-                                wk_item[key] = ""
+                            wk_item[key] = ""
                     elif field.name == "grade":
                         key = "grade"
                         if field.value != None:
@@ -175,10 +154,8 @@ def parsefit(fit_path, mode):
                         key = "power"
                         if field.value != None:
                             wk_item[key] = str(field.value)
-                            total_watt = total_watt + field.value
                         else:
                             wk_item[key] = "0"
-                        wk_item["calory"] = str(int(total_watt * cal_factor))
                     elif field.name == "temperature" or field.name == "unknown_13":
                         key = "temperature"
                         if field.value != None:
@@ -191,6 +168,12 @@ def parsefit(fit_path, mode):
                                 pass
                             else:
                                 wk_item[key] = ""
+                    elif field.name == "calories" or field.name == "unknown_33":
+                        key = "calories"
+                        if field.value != None:
+                            wk_item[key] = str(field.value)
+                        else:
+                            wk_item[key] = ""
                     elif field.name == "front_gear_num":
                         front_gear = field.value
                     elif field.name == "rear_gear_num":
@@ -212,6 +195,8 @@ def parsefit(fit_path, mode):
                     elif field.name == "unknown_81":
                         pass
                     elif field.name == "battery_soc":
+                        pass
+                    elif field.name == "ascent":
                         pass
                     else:
                         break
@@ -284,6 +269,11 @@ def set_font_size(ratio):
 def overlay_png(frames, dst_path, mov_path, args):
     from pathlib import Path
     from tqdm import tqdm
+    import requests
+
+    map_box_token = ""
+
+    api_url = "https://api.mapbox.com/styles/v1/mapbox/light-v10/static/pin-s+000({0},{1})/{0},{1},15,0/300x450?access_token=" + map_box_token
 
     mode = args.mode; pos = args.position; relative_height = args.size; duration = args.duration
     preset = args.preset; save_pngs = args.save_pngs; skip_generate = args.skip_generate
@@ -312,10 +302,18 @@ def overlay_png(frames, dst_path, mov_path, args):
             draw_text(base_img, "GEAR", positions["disp_right_pos"], positions["disp_title_line5"], font)
 
         img_num = 1
-        path_to_save = dst_path + "/" + "{:05d}" + ".png"
+        path_to_save = dst_path + "/" + "{0:05d}" + "{1}" + ".png"
+        sv_lng = "0.0"; sv_lat = "0.0"
         if duration >= 1:
+            try:
+                url = api_url.format(sv_lng, sv_lat)
+                img_map = requests.get(url)
+            except requests.exceptions.RequestException as err:
+                print(err)
             for s in range(1, duration + 1):
-                base_img.save(path_to_save.format(s))
+                with open(path_to_save.format(ｓ, "map"), "wb") as f:
+                    f.write(img_map.content)
+                base_img.save(path_to_save.format(s, ""))
             img_num += s
 
         try:
@@ -325,6 +323,7 @@ def overlay_png(frames, dst_path, mov_path, args):
             font_small = ImageFont.truetype(font_path, font_sizes["small_data"])
             for frame in frames:
                 img_wk = base_img.copy()
+                lat = ""; lng = ""
                 for k, v in frame.items():
                     if mode == "full":
                         if k == "timestamp":
@@ -335,7 +334,7 @@ def overlay_png(frames, dst_path, mov_path, args):
                             draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line2"], font_small)
                         elif k == "speed":
                             draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line2"], font_small)
-                        elif k == "calory":
+                        elif k == "calories":
                             draw_text(img_wk, v, positions["disp_left_pos"], positions["disp_data_line3"], font_small)
                         elif k == "cadence":
                             draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line3"], font_small)
@@ -345,7 +344,23 @@ def overlay_png(frames, dst_path, mov_path, args):
                             draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line4"], font_small)
                         elif k == "gear":
                             draw_text(img_wk, v, positions["disp_right_pos"], positions["disp_data_line5"], font_small)
-                img_wk.save(path_to_save.format(img_num))
+                        elif k == "position_lat":
+                            lat = v
+                        elif k == "position_long":
+                            lng = v
+                img_wk.save(path_to_save.format(img_num, ""))
+                if args.map == True:
+                    if lat != "" and lng != "":
+                        url = api_url.format(lng,lat)
+                        sv_lng = lng; sv_lat = lat
+                    else:
+                        url = api_url.format(sv_lng,sv_lat)
+                    try:
+                        img_map = requests.get(url)
+                        with open(path_to_save.format(img_num, "map"), "wb") as f:
+                            f.write(img_map.content)
+                    except requests.exceptions.RequestException as err:
+                        print(err)
                 img_num += 1
                 tqdm_bar.update(1)
         except KeyboardInterrupt:
@@ -362,15 +377,38 @@ def overlay_png(frames, dst_path, mov_path, args):
     else:
         y = mov_props["height"] - tmp_img.height * resize_ratio
 
+    # Temporal
+    x2 = mov_props["width"] - tmp_img.width * resize_ratio
+    y2 = 0
+
     output_path = dst_path + "/virtual_elemnt_bolt.mp4"
-    subprocess.run(["ffmpeg",
-        "-i", mov_path,
-        "-framerate", "1",
-        "-t", str(mov_props["time"]),
-        "-i", dst_path + "/%05d.png",
-        "-filter_complex", "[1:0]colorkey=black:0.01:0[colorkey];[0:0][colorkey]overlay=x={0}:y={1}:enable='gt(t,{2})'".format(x, y, duration),
-        "-preset", preset,
-        output_path])
+    if args.map == True:
+        subprocess.run(["ffmpeg",
+            "-i", mov_path,
+            "-t", str(mov_props["time"]),
+            "-framerate", "1",
+            "-i", dst_path + "/%05d.png",
+            "-framerate", "1",
+            "-i", dst_path + "/%05dmap.png",
+            "-filter_complex",
+            "[1]colorkey=black:0.01:0[colorkey];\
+                [0][colorkey]overlay=x={0}:y={1}:enable='gte(t,{2})'[v];\
+                [v][2]overlay=x={3}:y={4}:enable='gte(t,{5})'"\
+                .format(x, y, duration, x2, y2, duration),
+            "-preset", preset,
+            output_path])
+    else:
+        subprocess.run(["ffmpeg",
+            "-i", mov_path,
+            "-framerate", "1",
+            "-t", str(mov_props["time"]),
+            "-i", dst_path + "/%05d.png",
+            "-filter_complex",
+            "[1:0]colorkey=black:0.01:0[colorkey];\
+                [0:0][colorkey]overlay=x={0}:y={1}:enable='gt(t,{2})'"\
+                .format(x, y, duration),
+            "-preset", preset,
+            output_path])
 
     print("\n" + "Completed to write '{}' !!".format(output_path))
 
@@ -447,6 +485,10 @@ def main():
         type = int,
         default = 0,
         help = "Duration to start displaying ELEMNT BOLT (default: 0)")
+    parser.add_argument("--map",
+        default = False,
+        action = "store_true",
+        help = "Flag to add map")
     parser.add_argument("--mode", "-m", choices = ["full"],
         default = "full",
         help = "Display mode of ELEMNT BOLT (default: full)")
@@ -474,6 +516,11 @@ def main():
         choices = [i / 10 for i in range(1, 11)],
         help = "Relative height of ELEMNT BOLT to the video (default: 0.3)")
     args = parser.parse_args()
+
+    if args.map == True:
+        if args.position == "right:upper":
+            print("Please specify except 'right:upper' for --position with --map." )
+            sys.exit(1)
 
     # Check if the specified file is 'FIT'
     check_fit(args.fit_path, parser.print_help)
